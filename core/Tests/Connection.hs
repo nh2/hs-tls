@@ -41,12 +41,14 @@ import Data.X509
 import Data.Default.Class
 import Data.IORef
 import Control.Applicative
-import Control.Concurrent.Async
-import Control.Concurrent.Chan
-import Control.Concurrent
-import qualified Control.Exception as E
+import qualified UnliftIO.Exception as E
 import Control.Monad (unless, when)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.List (intersect, isInfixOf)
+import UnliftIO (MonadUnliftIO)
+import UnliftIO.Async
+import UnliftIO.Chan
+import UnliftIO.Concurrent
 
 import qualified Data.ByteString as B
 
@@ -366,15 +368,15 @@ newPairContext pipe (cParams, sParams) = do
                                     , loggingPacketRecv = putStrLn . ((pre ++ "<< ") ++) }
                 else def
 
-withDataPipe :: (ClientParams, ServerParams) -> (Context -> Chan result -> IO ()) -> (Chan start -> Context -> IO ()) -> ((start -> IO (), IO result) -> IO a) -> IO a
+withDataPipe :: (MonadUnliftIO m) => (ClientParams, ServerParams) -> (Context -> Chan result -> m ()) -> (Chan start -> Context -> m ()) -> ((start -> m (), m result) -> m a) -> m a
 withDataPipe params tlsServer tlsClient cont = do
     -- initial setup
-    pipe        <- newPipe
-    _           <- runPipe pipe
+    pipe        <- liftIO $ newPipe
+    _           <- liftIO $ runPipe pipe
     startQueue  <- newChan
     resultQueue <- newChan
 
-    (cCtx, sCtx) <- newPairContext pipe params
+    (cCtx, sCtx) <- liftIO $ newPairContext pipe params
 
     withAsync (E.catch (tlsServer sCtx resultQueue)
                        (printAndRaise "server" (serverSupported $ snd params))) $ \sAsync -> do
@@ -385,10 +387,10 @@ withDataPipe params tlsServer tlsClient cont = do
       cont (writeChan startQueue, readResult)
 
   where
-        printAndRaise :: String -> Supported -> E.SomeException -> IO ()
+        printAndRaise :: (MonadIO m) => String -> Supported -> E.SomeException -> m ()
         printAndRaise s supported e = do
-            putStrLn $ s ++ " exception: " ++ show e ++
-                            ", supported: " ++ show supported
+            liftIO $ putStrLn $ s ++ " exception: " ++ show e ++
+                                     ", supported: " ++ show supported
             E.throwIO e
 
 initiateDataPipe :: (ClientParams, ServerParams) -> (Context -> IO a1) -> (Context -> IO a) -> IO (Either E.SomeException a, Either E.SomeException a1)

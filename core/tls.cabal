@@ -151,6 +151,7 @@ Test-Suite test-tls
                    , x509
                    , x509-validation
                    , hourglass
+                   , unliftio
   ghc-options:       -Wall -fno-warn-unused-imports
 
 Benchmark bench-tls
@@ -175,6 +176,7 @@ Benchmark bench-tls
                    , QuickCheck >= 2
                    , tasty-quickcheck
                    , tls
+                   , unliftio
   ghc-options:       -Wall -fno-warn-unused-imports
 
 source-repository head
